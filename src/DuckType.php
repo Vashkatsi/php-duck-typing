@@ -8,15 +8,17 @@
 
 namespace DuckType;
 
+use DuckType\Exceptions\DuckTypeException;
+use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionNamedType;
 use ReflectionType;
-use InvalidArgumentException;
-use DuckType\Exceptions\DuckTypeException;
+use ReflectionUnionType;
 
 /**
  * @throws ReflectionException
+ * @throws DuckTypeException
  */
 function assertDuckType(object $instance, object|string $type): bool
 {
@@ -141,8 +143,42 @@ function assertDuckType(object $instance, object|string $type): bool
 
 function isTypeContravariant(ReflectionType $expectedType, ReflectionType $actualType): bool
 {
+    if ($expectedType instanceof ReflectionUnionType) {
+        if ($actualType instanceof ReflectionUnionType) {
+            foreach ($expectedType->getTypes() as $expectedUnionType) {
+                $matchFound = false;
+                foreach ($actualType->getTypes() as $actualUnionType) {
+                    if (isTypeContravariant($expectedUnionType, $actualUnionType)) {
+                        $matchFound = true;
+                        break;
+                    }
+                }
+                if (!$matchFound) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        foreach ($expectedType->getTypes() as $expectedUnionType) {
+            if (!isTypeContravariant($expectedUnionType, $actualType)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    if ($actualType instanceof ReflectionUnionType) {
+        foreach ($actualType->getTypes() as $actualUnionType) {
+            if (isTypeContravariant($expectedType, $actualUnionType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     if ($expectedType instanceof ReflectionNamedType && $actualType instanceof ReflectionNamedType) {
-        if ($expectedType->allowsNull() !== $actualType->allowsNull()) {
+        if ($actualType->allowsNull() && !$expectedType->allowsNull()) {
             return false;
         }
 
@@ -153,13 +189,45 @@ function isTypeContravariant(ReflectionType $expectedType, ReflectionType $actua
             return true;
         }
 
-        if (class_exists($expectedTypeName) && class_exists($actualTypeName)) {
-            if (is_a($expectedTypeName, $actualTypeName, true)) {
-                return true;
-            }
+        if ($expectedTypeName === 'mixed') {
+            return true;
+        }
+
+        if ($actualTypeName === 'mixed') {
+            return false;
+        }
+
+        if (is_subtype($expectedTypeName, $actualTypeName)) {
+            return true;
         }
 
         return false;
+    }
+    return false;
+}
+
+function is_subtype(string $subtype, string $supertype): bool
+{
+    $scalarTypes = [
+        'int',
+        'float',
+        'string',
+        'bool',
+        'array',
+        'object',
+        'callable',
+        'iterable',
+        'void',
+        'null',
+        'mixed',
+    ];
+
+    if (in_array($subtype, $scalarTypes) && in_array($supertype, $scalarTypes)) {
+        return $subtype === $supertype;
+    }
+
+    if (class_exists($subtype) || interface_exists($subtype)) {
+        return is_a($subtype, $supertype, true);
     }
 
     return false;
@@ -180,13 +248,35 @@ function isTypeCovariant(ReflectionType $expectedType, ReflectionType $actualTyp
         }
 
         if (class_exists($actualTypeName) && class_exists($expectedTypeName)) {
-            if (is_a($actualTypeName, $expectedTypeName, true)) {
-                return true;
-            }
+            return is_a($actualTypeName, $expectedTypeName, true);
         }
 
         return false;
     }
 
+    if ($expectedType instanceof ReflectionUnionType && $actualType instanceof ReflectionUnionType) {
+        foreach ($expectedType->getTypes() as $expectedUnionType) {
+            $matchFound = false;
+            foreach ($actualType->getTypes() as $actualUnionType) {
+                if (isTypeCovariant($expectedUnionType, $actualUnionType)) {
+                    $matchFound = true;
+                    break;
+                }
+            }
+            if (!$matchFound) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    if ($expectedType instanceof ReflectionUnionType) {
+        foreach ($expectedType->getTypes() as $unionType) {
+            if (isTypeCovariant($unionType, $actualType)) {
+                return true;
+            }
+        }
+        return false;
+    }
     return false;
 }

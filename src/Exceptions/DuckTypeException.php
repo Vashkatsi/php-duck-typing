@@ -8,9 +8,9 @@
 
 namespace DuckType\Exceptions;
 
-use LogicException;
+use Exception;
 
-class DuckTypeException extends LogicException
+class DuckTypeException extends Exception
 {
     protected array $errors;
 
@@ -23,5 +23,10 @@ class DuckTypeException extends LogicException
     public function getErrors(): array
     {
         return $this->errors;
+    }
+
+    public function __toString(): string
+    {
+        return "Duck typing assertion failed:\n".implode("\n", $this->errors);
     }
 }
