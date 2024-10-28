@@ -1,12 +1,12 @@
 {
-  "name": "vashkatsi/ducktype",
+  "name": "vashkatsi/php-duck-typing",
   "description": "A PHP library for asserting duck typing.",
   "keywords": [
     "duck typing",
     "type checking",
     "php"
   ],
-  "homepage": "https://github.com/vashkatsi/ducktype",
+  "homepage": "https://github.com/vashkatsi/php-duck-typing",
   "type": "library",
   "license": "BSD-3-Clause",
   "authors": [
